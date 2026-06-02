@@ -1,7 +1,3 @@
-# ============================================================
-#  ELDORIA GAME - ESTADO: SUBIU DE NÍVEL
-# ============================================================
-
 import pygame
 import math
 from utils.game_state_manager import BaseState
@@ -10,6 +6,8 @@ from utils.ui           import draw_text, draw_panel, Button, StarField
 
 
 class LevelUpState(BaseState):
+    
+    
 
     def enter(self, data: dict = None):
         data             = data or {}
@@ -94,7 +92,7 @@ class LevelUpState(BaseState):
         # Título pulsante
         pulse = abs(math.sin(self._t * 2)) * 30
         col   = (int(GOLD[0]), int(GOLD[1] - pulse), 0)
-        draw_text(surface, "✦ SUBIU DE NÍVEL! ✦",
+        draw_text(surface, " SUBIU DE NÍVEL! ",
                   SCREEN_WIDTH // 2, 60,
                   size=FONT_HUGE, color=GOLD, bold=True, center=True)
 

@@ -1,7 +1,4 @@
-# ============================================================
-#  ELDORIA GAME - ESTADO: PRÓLOGO (Tutorial com Mestre Kael)
-# ============================================================
-
+#  ESTADO: PRÓLOGO (Tutorial com Mestre Kael)
 import pygame
 import math
 import os
@@ -121,8 +118,11 @@ class PrologueState(BaseState):
             "Pular »", color=GRAY_DARK, font_size=FONT_SMALL
         )
 
+    
     def _dialogo_atual(self):
-        return _DIALOGOS[self._idx]
+      if self._idx >= len(_DIALOGOS):
+          return _DIALOGOS[-1]
+      return _DIALOGOS[self._idx]
 
     def _texto_visivel(self) -> str:
         full = self._dialogo_atual()["text"]
@@ -130,20 +130,21 @@ class PrologueState(BaseState):
         return full[:n]
 
     def _texto_completo(self) -> bool:
-        full = self._dialogo_atual()["text"]
-        return int(self._char_idx) >= len(full)
-
+      if self._idx >= len(_DIALOGOS):
+        return True
+      full = self._dialogo_atual()["text"]
+      return int(self._char_idx) >= len(full)
+  
     def _avancar(self):
-        if not self._texto_completo():
-            # Completa o texto primeiro
-            self._char_idx = float(len(self._dialogo_atual()["text"]))
-            return
-        self._idx += 1
-        if self._idx >= len(_DIALOGOS):
-            self._iniciar_batalha()
-            return
-        self._char_idx = 0.0
-        self._alpha    = 0.0
+      if not self._texto_completo():
+         self._char_idx = float(len(self._dialogo_atual()["text"]))
+         return
+      self._idx += 1
+      if self._idx >= len(_DIALOGOS):
+         self._iniciar_batalha()
+         return
+      self._char_idx = 0.0
+      self._alpha    = 0.0
 
     def _iniciar_batalha(self):
         self.manager.inimigo_atual = ENEMY_SENTINELA

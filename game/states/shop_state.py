@@ -1,6 +1,4 @@
-# ============================================================
-#  ELDORIA GAME - ESTADO: LOJA (Oficina de Kael)
-# ============================================================
+
 
 import pygame
 import math
@@ -74,15 +72,15 @@ class ShopState(BaseState):
         self._msg_col = WHITE
 
         # Botões de compra
-        bw, bh = 160, 44
+        bw, bh = 132, 44 # Tamanho dos botões
         self._item_btns = []
         for i, item in enumerate(_ITENS):
             row  = i // 2
             col  = i  % 2
-            bx   = 200 + col * 400
+            bx   = 180 + col * 435
             by   = 200 + row * 100
             btn  = Button(
-                pygame.Rect(bx + 280, by + 4, bw, bh),
+                pygame.Rect(bx + 310, by + 2, bw, bh),
                 f"Comprar ({item['preco']}g)",
                 color=(50, 40, 90), hover_color=item["cor"],
                 font_size=FONT_TINY
@@ -169,17 +167,17 @@ class ShopState(BaseState):
                   size=FONT_MEDIUM, color=GOLD, bold=True)
 
         # Itens
-        panel = pygame.Rect(160, 115, SCREEN_WIDTH - 200, 500)
+        panel = pygame.Rect(160, 115, SCREEN_WIDTH - 200, 500) 
         draw_panel(surface, panel, alpha=180)
 
-        for i, (item, btn) in enumerate(self._item_btns):
-            row = i // 2
-            col = i  % 2
-            bx  = 200 + col * 400
+        for i, (item, btn) in enumerate(self._item_btns): 
+            row = i // 2 
+            col = i  % 2 
+            bx  = 200 + col * 460 
             by  = 200 + row * 100
 
             # Card do item
-            card = pygame.Rect(bx - 20, by - 8, 470, 70)
+            card = pygame.Rect(bx - 20, by - 8, 450, 70)
             draw_panel(surface, card, bg_color=(28, 20, 55),
                        border_color=item["cor"], alpha=200)
 

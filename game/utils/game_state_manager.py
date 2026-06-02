@@ -1,12 +1,5 @@
-# ============================================================
-#  ELDORIA GAME - BASE STATE + GAME MANAGER
-# ============================================================
-
 import pygame
 from utils.constants import *
-
-
-# ── Estado base ──────────────────────────────────────────────
 
 class BaseState:
     """Interface comum para todos os estados do jogo."""
@@ -33,7 +26,7 @@ class BaseState:
         self.manager.change_state(state_name, data)
 
 
-# ── Game Manager ─────────────────────────────────────────────
+# ── Game Manager 
 
 class GameManager:
     """
@@ -70,11 +63,11 @@ class GameManager:
         from states.levelup_state     import LevelUpState
         from states.game_over_state   import GameOverState
         from states.victory_state     import VictoryState
-        from states.video_state       import VideoState       # ← NOVO
+        from states.video_state       import VideoState       
 
         self.register(STATE_INTRO,       IntroState(self))
         self.register(STATE_HERO_SELECT, HeroSelectState(self))
-        self.register("video",           VideoState(self))    # ← NOVO
+        self.register("video",           VideoState(self))    
         self.register(STATE_PROLOGUE,    PrologueState(self))
         self.register(STATE_BATTLE,      BattleState(self))
         self.register(STATE_MAP,         MapState(self))

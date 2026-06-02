@@ -1,6 +1,3 @@
-# ============================================================
-#  ELDORIA GAME - HERÓI (CORRIGIDO)
-# ============================================================
 
 from classes.Personagem import Personagem
 
@@ -25,7 +22,7 @@ class Heroi(Personagem):
 
         # ── Inventário ───────────────────────────────────────
         self.pocoes      = 3
-        self.pocao_cura  = 50    # quanto cura cada poção
+        self.pocao_cura  = 150    # quanto cura cada poção
         self.ouro        = 0
 
         # ── Progressão ───────────────────────────────────────
@@ -121,23 +118,23 @@ class Heroi(Personagem):
 
 def criar_arthur() -> Heroi:
     """Arthur — Guerreiro Compilador. Alto ATK e DEF, MP menor."""
-    h            = Heroi("Arthur", "arthur", hp_max=140, ataque=28, defesa=12, mp_max=45)
+    h            = Heroi("artraws", "artraws", hp_max=160, ataque=28, defesa=12, mp_max=45)
     h.descricao  = ("Guerreiro da Ordem dos Compiladores.\n"
                     "Usa força bruta e foco absoluto para\n"
                     "destruir bugs com código preciso.")
     h.cor        = (80, 140, 255)
-    h.pocao_cura = 55
+    h.pocao_cura = 80
     h.desbloquear_habilidade("Golpe Compilado", "Ataque poderoso que ignora metade da defesa inimiga.")
     return h
 
 
 def criar_luna() -> Heroi:
     """Luna — Maga das Estruturas. Alto MP, ataques mágicos especiais."""
-    h            = Heroi("Luna", "luna", hp_max=110, ataque=20, defesa=7, mp_max=90)
+    h            = Heroi("Luna", "luna", hp_max=210, ataque=20, defesa=12, mp_max=90)
     h.descricao  = ("Arquiteta de dados e feiticeira dos\n"
                     "algoritmos. Converte erros em energia\n"
                     "pura para destruir o caos.")
     h.cor        = (200, 80, 255)
-    h.pocao_cura = 45
+    h.pocao_cura = 80
     h.desbloquear_habilidade("Fluxo de Dados", "Ataque mágico que dobra o dano com resposta correta.")
     return h

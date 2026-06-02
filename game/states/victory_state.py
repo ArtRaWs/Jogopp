@@ -189,7 +189,7 @@ class VictoryState(BaseState):
                           size=FONT_TINY, color=PURPLE)
                 cy += 18
                 for hab in h.habilidades:
-                    draw_text(surface, f"  ✦ {hab}",
+                    draw_text(surface, f"  {hab}",
                               panel.x + 50, cy,
                               size=FONT_TINY, color=WHITE)
                     cy += 16

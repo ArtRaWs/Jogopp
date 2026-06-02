@@ -1,7 +1,3 @@
-# ============================================================
-#  ELDORIA GAME - ESTADO: BATALHA
-# ============================================================
-
 import pygame
 import math
 import random
@@ -12,6 +8,7 @@ from utils.ui           import (draw_text, draw_panel, draw_bar,
                                 Button, CombatLog, DamagePopup, StarField)
 from classes.vilao      import criar_inimigo
 from data.perguntas     import get_perguntas
+from states.attack_animation import AttackAnimation   # ← NOVO
 
 
 # ── Fases da batalha ─────────────────────────────────────────
@@ -19,9 +16,16 @@ FASE_PLAYER_TURNO  = "player"
 FASE_QUIZ          = "quiz"
 FASE_INIMIGO_TURNO = "inimigo"
 FASE_ANIMACAO      = "animacao"
+FASE_ANIM_INIMIGO  = "anim_ini"
 FASE_VITORIA       = "vitoria"
 FASE_DERROTA       = "derrota"
 FASE_APRESENTACAO  = "apresentacao"
+
+# Posições base dos sprites
+HEROI_BASE_X   = 160
+HEROI_BASE_Y   = 360
+INIMIGO_BASE_X = 880
+INIMIGO_BASE_Y = 300
 
 
 class BattleState(BaseState):
@@ -41,13 +45,34 @@ class BattleState(BaseState):
         self._shake_x   = 0
         self._shake_y   = 0
 
+        # ── Posições animadas ─────────────────────────────────
+        self._heroi_x       = float(HEROI_BASE_X)
+        self._heroi_y       = float(HEROI_BASE_Y)
+        self._inimigo_x     = float(INIMIGO_BASE_X)
+        self._inimigo_y     = float(INIMIGO_BASE_Y)
+        self._anim_t        = 0.0
+        self._anim_impacto  = False
+        self._anim_callback = None
+
+        # ── Animação de ataque com spritesheet ────────────────
+        self._attack_anim  = None   # instância ativa
+        tipo_heroi = getattr(self.manager.heroi, "tipo", "arthur")
+        sheet_nome = "atack_luna.png" if tipo_heroi == "luna" else "atack_arthur.png"
+        self._attack_sheet = None
+        try:
+            self._attack_sheet = pygame.image.load(
+                self._asset_path(sheet_nome)
+            ).convert()
+        except Exception as e:
+            print(f"[BattleState] spritesheet {sheet_nome} nao carregado: {e}")
+
         # ── Personagens ──────────────────────────────────────
         self._heroi   = self.manager.heroi
         self._inimigo = criar_inimigo(data.get("inimigo", ENEMY_SENTINELA))
 
         # ── Artes (fundo e sprites) ───────────────────────────
-        self._bg_img = None
-        self._hero_img = None
+        self._bg_img    = None
+        self._hero_img  = None
         self._enemy_img = None
 
         try:
@@ -57,17 +82,15 @@ class BattleState(BaseState):
         except Exception:
             self._bg_img = None
 
-        # Herói
         try:
             tipo_heroi = getattr(self._heroi, "tipo", "")
-            if tipo_heroi == "arthur":
+            if tipo_heroi == "artraws":
                 self._hero_img = pygame.image.load(self._asset_path("artraws.png")).convert_alpha()
             elif tipo_heroi == "luna":
                 self._hero_img = pygame.image.load(self._asset_path("luna.png")).convert_alpha()
         except Exception:
             self._hero_img = None
 
-        # Inimigo
         try:
             inimigo_nome = type(self._inimigo).__name__
             if inimigo_nome == "SentinelaSuccata":
@@ -78,11 +101,11 @@ class BattleState(BaseState):
             self._enemy_img = None
 
         # ── Log de combate ───────────────────────────────────
-        log_rect    = pygame.Rect(30, SCREEN_HEIGHT - 185, SCREEN_WIDTH - 60, 115)
-        self._log   = CombatLog(log_rect)
+        log_rect  = pygame.Rect(30, SCREEN_HEIGHT - 185, SCREEN_WIDTH - 60, 115)
+        self._log = CombatLog(log_rect)
         self._log.add(f"Batalha iniciada: {self._heroi.nome} vs {self._inimigo.nome}!", GOLD)
 
-           # ── Quiz ─────────────────────────────────────────────
+        # ── Quiz ─────────────────────────────────────────────
         self._perguntas    = get_perguntas(self._inimigo.topico_python)
         self._pergunta     = None
         self._resp_btns    = []
@@ -91,19 +114,19 @@ class BattleState(BaseState):
         self._pergunta_idx = 0
 
         # ── Botões de ação ───────────────────────────────────
-        bw, bh = 220, 52
+        bw, bh = 240, 52
         bx      = SCREEN_WIDTH // 2 - bw // 2
         self._btns = {
             "ataque": Button(pygame.Rect(bx - bw - 10, SCREEN_HEIGHT - 295, bw, bh),
-                             "⚔  Ataque Básico", color=(100, 30, 30), hover_color=RED),
+                             "Ataque Básico", color=(100, 30, 30), hover_color=RED),
             "pocao":  Button(pygame.Rect(bx,           SCREEN_HEIGHT - 295, bw, bh),
-                             "⊕  Usar Poção",    color=(30, 100, 40), hover_color=GREEN),
+                             "Usar Poção",    color=(30, 100, 40), hover_color=GREEN),
             "habil":  Button(pygame.Rect(bx + bw + 10, SCREEN_HEIGHT - 295, bw, bh),
-                             "✦  Habilidade Especial", color=(60, 20, 120), hover_color=PURPLE),
+                             " Habilidade Especial", color=(60, 20, 120), hover_color=PURPLE),
         }
         self._atualizar_btns()
 
-        # ── Animação de apresentação do inimigo ───────────────
+        # ── Apresentação ──────────────────────────────────────
         self._apres_t = 0.0
         self._log.add(self._inimigo.frase_apresentacao, RED)
 
@@ -141,15 +164,99 @@ class BattleState(BaseState):
             )
             self._resp_btns.append(btn)
 
+    # ── Animações de movimento (fallback geométrico) ─────────
+
+    def _iniciar_anim_heroi(self, callback):
+        self._fase          = FASE_ANIMACAO
+        self._fase_t        = 0.0
+        self._anim_t        = 0.0
+        self._anim_impacto  = False
+        self._anim_callback = callback
+
+    def _iniciar_anim_inimigo(self, callback):
+        self._fase          = FASE_ANIM_INIMIGO
+        self._fase_t        = 0.0
+        self._anim_t        = 0.0
+        self._anim_impacto  = False
+        self._anim_callback = callback
+
+    def _update_anim_heroi(self, dt):
+        self._anim_t += dt
+        duracao = 0.25
+        alvo_x  = float(INIMIGO_BASE_X - 130)
+
+        if self._anim_t <= duracao:
+            prog = self._anim_t / duracao
+            prog = math.sin(prog * math.pi / 2)
+            self._heroi_x = HEROI_BASE_X + (alvo_x - HEROI_BASE_X) * prog
+            if prog >= 0.85 and not self._anim_impacto:
+                self._anim_impacto = True
+                self._anim_callback()
+        elif self._anim_t <= duracao * 2:
+            prog = (self._anim_t - duracao) / duracao
+            prog = math.sin(prog * math.pi / 2)
+            self._heroi_x = alvo_x + (HEROI_BASE_X - alvo_x) * prog
+        else:
+            self._heroi_x = float(HEROI_BASE_X)
+            self._fase    = FASE_INIMIGO_TURNO
+            self._fase_t  = 0.0
+
+    def _update_anim_inimigo(self, dt):
+        self._anim_t += dt
+        duracao = 0.25
+        alvo_x  = float(HEROI_BASE_X + 130)
+
+        if self._anim_t <= duracao:
+            prog = self._anim_t / duracao
+            prog = math.sin(prog * math.pi / 2)
+            self._inimigo_x = INIMIGO_BASE_X + (alvo_x - INIMIGO_BASE_X) * prog
+            if prog >= 0.85 and not self._anim_impacto:
+                self._anim_impacto = True
+                self._anim_callback()
+        elif self._anim_t <= duracao * 2:
+            prog = (self._anim_t - duracao) / duracao
+            prog = math.sin(prog * math.pi / 2)
+            self._inimigo_x = alvo_x + (INIMIGO_BASE_X - alvo_x) * prog
+        else:
+            self._inimigo_x = float(INIMIGO_BASE_X)
+            if not self._heroi.esta_vivo():
+                self._fase   = FASE_DERROTA
+                self._fase_t = 0.0
+            elif not self._inimigo.esta_vivo():
+                self._fase   = FASE_VITORIA
+                self._fase_t = 0.0
+            else:
+                self._fase = FASE_PLAYER_TURNO
+                self._atualizar_btns()
+
     # ── Ações do jogador ─────────────────────────────────────
 
     def _acao_ataque(self):
-        dano = self._heroi.atacar(self._inimigo)
-        self._log.add(f"{self._heroi.nome} atacou! Dano: {dano}", ORANGE)
-        self._add_popup(f"-{dano}", 620, 280)
-        self._shake_screen(5)
-        self._heroi.processar_turno()
-        self._iniciar_turno_inimigo()
+        if self._attack_sheet:
+            # Animação com spritesheet
+            self._attack_anim = AttackAnimation(
+                sheet      = self._attack_sheet,
+                hero_type  = getattr(self._heroi, 'tipo', 'arthur'),
+                heroi_x    = HEROI_BASE_X,
+                heroi_y    = HEROI_BASE_Y,
+                inimigo_x  = INIMIGO_BASE_X,
+                inimigo_y  = INIMIGO_BASE_Y,
+                scale      = 0.55,
+            )
+            self._fase   = FASE_ANIMACAO
+            self._fase_t = 0.0
+        else:
+            # Fallback geométrico
+            def aplicar():
+                dano = self._heroi.atacar(self._inimigo)
+                self._log.add(f"{self._heroi.nome} atacou! Dano: {dano}", ORANGE)
+                self._add_popup(f"-{dano}", INIMIGO_BASE_X, 220)
+                self._shake_screen(5)
+                self._heroi.processar_turno()
+                if not self._inimigo.esta_vivo():
+                    self._fase   = FASE_VITORIA
+                    self._fase_t = 0.0
+            self._iniciar_anim_heroi(aplicar)
 
     def _acao_pocao(self):
         ok, cura = self._heroi.usar_pocao()
@@ -174,24 +281,28 @@ class BattleState(BaseState):
     def _processar_resposta(self, idx: int):
         correto = (idx == self._pergunta["correta"])
         if correto:
-            # Habilidade especial com acerto
-            dano_base  = self._heroi.ataque_total * 2 + 15
-            dano_total = self._inimigo.receber_dano_fixo(dano_base)
-            self._log.add(f"✓ Correto! {self._heroi.nome} usou golpe especial! Dano: {dano_total}", ACCENT)
-            self._add_popup(f"CRÍTICO! -{dano_total}", 600, 260, GOLD)
-            self._shake_screen(10)
+            def aplicar_especial():
+                dano_base  = self._heroi.ataque_total * 2 + 15
+                dano_total = self._inimigo.receber_dano_fixo(dano_base)
+                self._log.add(f"✓ Correto! {self._heroi.nome} usou golpe especial! Dano: {dano_total}", ACCENT)
+                self._add_popup(f"CRÍTICO! -{dano_total}", INIMIGO_BASE_X, 200, GOLD)
+                self._shake_screen(10)
+                if not self._inimigo.esta_vivo():
+                    self._fase   = FASE_VITORIA
+                    self._fase_t = 0.0
             self._quiz_result = "certo"
+            self._quiz_t      = 0.0
+            self._heroi.processar_turno()
+            self._iniciar_anim_heroi(aplicar_especial)
         else:
-            # Falha — recebe contra-ataque
             self._log.add(f"✗ Errado! Habilidade falhou! {self._pergunta['explicacao']}", RED)
-            contra  = int(self._inimigo.ataque * 0.8)
+            contra   = int(self._inimigo.ataque * 0.8)
             recebido = self._heroi.receber_dano_fixo(contra)
             self._log.add(f"{self._inimigo.nome} aproveitou a abertura! Dano: {recebido}", RED)
             self._add_popup(f"-{recebido}", 180, 260, RED)
             self._quiz_result = "errado"
-
-        self._quiz_t = 0.0
-        self._heroi.processar_turno()
+            self._quiz_t      = 0.0
+            self._heroi.processar_turno()
 
     def _iniciar_turno_inimigo(self):
         self._fase   = FASE_INIMIGO_TURNO
@@ -200,20 +311,12 @@ class BattleState(BaseState):
     def _executar_turno_inimigo(self):
         if not self._inimigo.esta_vivo():
             return
-        frase, dano = self._inimigo.executar_acao(self._heroi)
-        self._log.add(f"{self._inimigo.nome} {frase} Dano: {dano}", (255, 140, 140))
-        self._add_popup(f"-{dano}", 200, 300, RED)
-        self._shake_screen(6)
-
-        if not self._heroi.esta_vivo():
-            self._fase   = FASE_DERROTA
-            self._fase_t = 0.0
-        elif not self._inimigo.esta_vivo():
-            self._fase   = FASE_VITORIA
-            self._fase_t = 0.0
-        else:
-            self._fase = FASE_PLAYER_TURNO
-            self._atualizar_btns()
+        def aplicar_dano():
+            frase, dano = self._inimigo.executar_acao(self._heroi)
+            self._log.add(f"{self._inimigo.nome} {frase} Dano: {dano}", (255, 140, 140))
+            self._add_popup(f"-{dano}", HEROI_BASE_X, 220, RED)
+            self._shake_screen(6)
+        self._iniciar_anim_inimigo(aplicar_dano)
 
     # ── Verificações de fim de combate ────────────────────────
 
@@ -238,7 +341,6 @@ class BattleState(BaseState):
             for e in events:
                 if self._btns["ataque"].is_clicked(e):
                     self._acao_ataque()
-                    self._checar_vitoria()
                 elif self._btns["pocao"].is_clicked(e):
                     self._acao_pocao()
                 elif self._btns["habil"].is_clicked(e):
@@ -252,9 +354,7 @@ class BattleState(BaseState):
                     for i, btn in enumerate(self._resp_btns):
                         if btn.is_clicked(e):
                             self._processar_resposta(i)
-
             else:
-                # Aguarda 2s após resultado
                 for e in events:
                     if e.type == pygame.KEYDOWN and e.key == pygame.K_RETURN:
                         self._fechar_quiz()
@@ -285,19 +385,19 @@ class BattleState(BaseState):
     def _ir_para_levelup(self):
         gained_xp = self._inimigo.xp_recompensa
         self._heroi.ganhar_xp(gained_xp)
-        self.manager.heroi            = self._heroi
-        self.manager.ultima_batalha   = self.manager.inimigo_atual
-        self.manager.progresso       += 1
+        self.manager.heroi          = self._heroi
+        self.manager.ultima_batalha = self.manager.inimigo_atual
+        self.manager.progresso     += 1
         self.go_to("levelup", {
-            "xp_ganho":    gained_xp,
-            "ouro_ganho":  self._inimigo.ouro_recompensa,
+            "xp_ganho":     gained_xp,
+            "ouro_ganho":   self._inimigo.ouro_recompensa,
             "inimigo_nome": self._inimigo.nome,
         })
 
     def _ir_para_game_over(self):
         self.go_to(STATE_GAME_OVER, {
-            "dica":     self._inimigo.dica_python,
-            "inimigo":  self._inimigo.nome,
+            "dica":    self._inimigo.dica_python,
+            "inimigo": self._inimigo.nome,
         })
 
     # ── Update ───────────────────────────────────────────────
@@ -322,11 +422,42 @@ class BattleState(BaseState):
             p.update(dt)
         self._popups = [p for p in self._popups if p.alive]
 
-        # Turno inimigo automático após delay
-        if self._fase == FASE_INIMIGO_TURNO and self._fase_t > 1.2:
+        # ── Animação do herói (spritesheet ou fallback) ───────
+        if self._fase == FASE_ANIMACAO:
+            if self._attack_anim:
+                # Aplica dano no momento do impacto
+                if self._attack_anim.deve_aplicar_dano:
+                    self._attack_anim.deve_aplicar_dano = False
+                    dano = self._heroi.atacar(self._inimigo)
+                    self._log.add(f"{self._heroi.nome} atacou! Dano: {dano}", ORANGE)
+                    self._add_popup(f"-{dano}", INIMIGO_BASE_X, 220)
+                    self._shake_screen(8)
+                    self._heroi.processar_turno()
+                    if not self._inimigo.esta_vivo():
+                        self._fase   = FASE_VITORIA
+                        self._fase_t = 0.0
+                # Knockback do inimigo durante a animação
+                self._inimigo_x = INIMIGO_BASE_X + self._attack_anim.inimigo_offset_x
+                # Avança animação
+                done = self._attack_anim.update(dt)
+                if done:
+                    self._attack_anim = None
+                    self._inimigo_x   = float(INIMIGO_BASE_X)
+                    if self._fase not in (FASE_VITORIA, FASE_DERROTA):
+                        self._fase   = FASE_INIMIGO_TURNO
+                        self._fase_t = 0.0
+            else:
+                self._update_anim_heroi(dt)  # fallback geométrico
+
+        # ── Animação do inimigo ───────────────────────────────
+        elif self._fase == FASE_ANIM_INIMIGO:
+            self._update_anim_inimigo(dt)
+
+        # ── Turno inimigo automático após delay ───────────────
+        elif self._fase == FASE_INIMIGO_TURNO and self._fase_t > 0.8:
             self._executar_turno_inimigo()
 
-        # Apresentação → player turno
+        # ── Apresentação → player turno ───────────────────────
         if self._fase == FASE_APRESENTACAO and self._fase_t > 3.5:
             self._fase = FASE_PLAYER_TURNO
 
@@ -341,46 +472,37 @@ class BattleState(BaseState):
 
         ox, oy = self._shake_x, self._shake_y
 
-        # ── HUD Herói (esquerda) ──────────────────────────────
         self._draw_hud_heroi(surface, ox, oy)
-
-        # ── HUD Inimigo (direita) ─────────────────────────────
         self._draw_hud_inimigo(surface, ox, oy)
 
-        # ── Sprites ───────────────────────────────────────────
-        self._draw_heroi_sprite(surface, 160 + ox, 310 + oy)
-        self._draw_inimigo_sprite(surface, 680 + ox, 300 + oy)
+        # Inimigo sempre na posição animada
+        self._draw_inimigo_sprite(surface, int(self._inimigo_x) + ox,
+                                           int(self._inimigo_y) + oy)
 
-        # ── Log ───────────────────────────────────────────────
+        # Herói: spritesheet durante ataque, sprite normal fora
+        if self._attack_anim and self._fase == FASE_ANIMACAO:
+            self._attack_anim.draw(surface)
+        else:
+            self._draw_heroi_sprite(surface, int(self._heroi_x) + ox,
+                                             int(self._heroi_y) + oy)
+
         self._log.draw(surface)
 
-        # ── Botões de ação ────────────────────────────────────
         if self._fase == FASE_PLAYER_TURNO:
             self._draw_action_buttons(surface)
-
-        # ── Quiz ──────────────────────────────────────────────
         elif self._fase == FASE_QUIZ:
             self._draw_quiz(surface)
-
-        # ── Aguardando turno inimigo ──────────────────────────
-        elif self._fase == FASE_INIMIGO_TURNO:
+        elif self._fase in (FASE_INIMIGO_TURNO, FASE_ANIM_INIMIGO):
             draw_text(surface, f"Turno de {self._inimigo.nome}...",
                       SCREEN_WIDTH // 2, SCREEN_HEIGHT - 260,
                       size=FONT_MEDIUM, color=RED, center=True)
-
-        # ── Apresentação ──────────────────────────────────────
         elif self._fase == FASE_APRESENTACAO:
             self._draw_apresentacao(surface)
-
-        # ── Vitória ───────────────────────────────────────────
         elif self._fase == FASE_VITORIA:
             self._draw_overlay_vitoria(surface)
-
-        # ── Derrota ───────────────────────────────────────────
         elif self._fase == FASE_DERROTA:
             self._draw_overlay_derrota(surface)
 
-        # ── Popups de dano ────────────────────────────────────
         for p in self._popups:
             p.draw(surface)
 
@@ -413,7 +535,6 @@ class BattleState(BaseState):
                       size=FONT_TINY, color=RED)
 
     def _draw_heroi_sprite(self, surface, cx, cy):
-        # Se tiver sprite PNG, usa ele.
         if self._hero_img:
             bob = int(math.sin(self._t * 2) * 4)
             cy += bob
@@ -427,36 +548,35 @@ class BattleState(BaseState):
             surface.blit(spr, r)
             return
 
-        h   = self._heroi
-        bob = int(math.sin(self._t * 2) * 4)
-        cy += bob
-        col = h.cor
+        h    = self._heroi
+        bob  = int(math.sin(self._t * 2) * 4)
+        cy  += bob
+        col  = h.cor
         dark = tuple(max(0, c - 60) for c in col)
 
         if h.tipo == "arthur":
             pygame.draw.rect(surface, col,  pygame.Rect(cx - 22, cy - 35, 44, 55))
             pygame.draw.rect(surface, dark, pygame.Rect(cx - 22, cy - 35, 44, 55), 2)
-            pygame.draw.circle(surface, col, (cx, cy - 52), 24)
+            pygame.draw.circle(surface, col,  (cx, cy - 52), 24)
             pygame.draw.circle(surface, dark, (cx, cy - 52), 24, 2)
             pygame.draw.polygon(surface, GOLD, [(cx-26, cy-58), (cx, cy-88), (cx+26, cy-58)])
-            pygame.draw.rect(surface, GOLD, pygame.Rect(cx + 26, cy - 60, 7, 72))
+            pygame.draw.rect(surface, GOLD,  pygame.Rect(cx + 26, cy - 60, 7, 72))
             pygame.draw.rect(surface, WHITE, pygame.Rect(cx + 19, cy - 28, 20, 7))
-            pygame.draw.rect(surface, dark, pygame.Rect(cx - 20, cy + 20, 17, 28))
-            pygame.draw.rect(surface, dark, pygame.Rect(cx + 3,  cy + 20, 17, 28))
+            pygame.draw.rect(surface, dark,  pygame.Rect(cx - 20, cy + 20, 17, 28))
+            pygame.draw.rect(surface, dark,  pygame.Rect(cx + 3,  cy + 20, 17, 28))
         else:
             pygame.draw.polygon(surface, col, [(cx-28, cy+50), (cx, cy-32), (cx+28, cy+50)])
             pygame.draw.rect(surface, dark, pygame.Rect(cx - 14, cy - 32, 28, 44))
-            pygame.draw.circle(surface, col, (cx, cy - 50), 22)
+            pygame.draw.circle(surface, col,  (cx, cy - 50), 22)
             pygame.draw.circle(surface, dark, (cx, cy - 50), 22, 2)
             pygame.draw.arc(surface, PURPLE, pygame.Rect(cx-26, cy-74, 52, 34), 0, math.pi, 4)
             pygame.draw.line(surface, GOLD, (cx - 30, cy + 46), (cx - 28, cy - 64), 5)
-            a   = self._t * 2
+            a       = self._t * 2
             orb_col = (int(abs(math.sin(a))*200+55), int(abs(math.cos(a))*150+55), 255)
             pygame.draw.circle(surface, orb_col, (cx - 28, cy - 68), 10)
-            pygame.draw.circle(surface, WHITE, (cx - 28, cy - 68), 10, 1)
+            pygame.draw.circle(surface, WHITE,   (cx - 28, cy - 68), 10, 1)
 
     def _draw_inimigo_sprite(self, surface, cx, cy):
-        # Se tiver sprite PNG, usa ele.
         if self._enemy_img:
             bob = int(math.sin(self._t * 1.8) * 5)
             cy += bob
@@ -470,76 +590,65 @@ class BattleState(BaseState):
             surface.blit(spr, r)
             return
 
-        e   = self._inimigo
-        t   = self._t
-        bob = int(math.sin(t * 1.8) * 5)
-        cy += bob
-        col = e.cor
+        e    = self._inimigo
+        t    = self._t
+        bob  = int(math.sin(t * 1.8) * 5)
+        cy  += bob
+        col  = e.cor
         dark = tuple(max(0, c - 50) for c in col)
-
         nome = type(e).__name__
 
         if nome == "SentinelaSuccata":
-            # Robô de sucata
-            pygame.draw.rect(surface, col, pygame.Rect(cx - 30, cy - 50, 60, 70))
-            pygame.draw.rect(surface, dark, pygame.Rect(cx - 30, cy - 50, 60, 70), 3)
+            pygame.draw.rect(surface, col,       pygame.Rect(cx - 30, cy - 50, 60, 70))
+            pygame.draw.rect(surface, dark,      pygame.Rect(cx - 30, cy - 50, 60, 70), 3)
             pygame.draw.rect(surface, GRAY_DARK, pygame.Rect(cx - 22, cy - 44, 44, 30))
-            pygame.draw.circle(surface, RED, (cx - 10, cy - 34), 6)
-            pygame.draw.circle(surface, RED, (cx + 10, cy - 34), 6)
-            pygame.draw.rect(surface, GRAY, pygame.Rect(cx - 16, cy - 20, 32, 6))
-            pygame.draw.rect(surface, dark, pygame.Rect(cx - 38, cy - 45, 12, 55))
-            pygame.draw.rect(surface, dark, pygame.Rect(cx + 26, cy - 45, 12, 55))
-            pygame.draw.rect(surface, dark, pygame.Rect(cx - 18, cy + 20, 14, 30))
-            pygame.draw.rect(surface, dark, pygame.Rect(cx + 4,  cy + 20, 14, 30))
-            # Parafusos
+            pygame.draw.circle(surface, RED,  (cx - 10, cy - 34), 6)
+            pygame.draw.circle(surface, RED,  (cx + 10, cy - 34), 6)
+            pygame.draw.rect(surface, GRAY,  pygame.Rect(cx - 16, cy - 20, 32, 6))
+            pygame.draw.rect(surface, dark,  pygame.Rect(cx - 38, cy - 45, 12, 55))
+            pygame.draw.rect(surface, dark,  pygame.Rect(cx + 26, cy - 45, 12, 55))
+            pygame.draw.rect(surface, dark,  pygame.Rect(cx - 18, cy + 20, 14, 30))
+            pygame.draw.rect(surface, dark,  pygame.Rect(cx + 4,  cy + 20, 14, 30))
             for px, py in [(cx-26, cy-46), (cx+18, cy-46), (cx-26, cy+14), (cx+18, cy+14)]:
                 pygame.draw.circle(surface, GOLD, (px, py), 4)
 
         elif nome == "GeneralBug":
-            # General militarista
-            pygame.draw.rect(surface, col, pygame.Rect(cx - 26, cy - 40, 52, 65))
+            pygame.draw.rect(surface, col,  pygame.Rect(cx - 26, cy - 40, 52, 65))
             pygame.draw.rect(surface, dark, pygame.Rect(cx - 26, cy - 40, 52, 65), 2)
-            pygame.draw.circle(surface, col, (cx, cy - 55), 22)
+            pygame.draw.circle(surface, col,  (cx, cy - 55), 22)
             pygame.draw.circle(surface, dark, (cx, cy - 55), 22, 2)
             pygame.draw.polygon(surface, RED, [(cx - 28, cy - 68), (cx, cy - 95), (cx + 28, cy - 68)])
-            # Insígnias
             pygame.draw.circle(surface, GOLD, (cx - 16, cy - 32), 5)
             pygame.draw.circle(surface, GOLD, (cx,      cy - 32), 5)
             pygame.draw.circle(surface, GOLD, (cx + 16, cy - 32), 5)
-            # Espada larga
             pygame.draw.rect(surface, (180, 180, 200), pygame.Rect(cx + 28, cy - 60, 10, 80))
             pygame.draw.rect(surface, GOLD, pygame.Rect(cx + 22, cy - 22, 22, 8))
             pygame.draw.rect(surface, dark, pygame.Rect(cx - 22, cy + 25, 18, 30))
             pygame.draw.rect(surface, dark, pygame.Rect(cx + 4,  cy + 25, 18, 30))
 
         else:  # ReiDrakon
-            # Rei draconico épico
-            pulse = int(abs(math.sin(t * 2)) * 40)
+            pulse    = int(abs(math.sin(t * 2)) * 40)
             body_col = (col[0], max(0, col[1] - 20), min(255, col[2] + pulse))
             pygame.draw.polygon(surface, body_col, [
                 (cx - 40, cy + 80), (cx - 20, cy - 40),
                 (cx, cy - 60), (cx + 20, cy - 40), (cx + 40, cy + 80)
             ])
             pygame.draw.circle(surface, body_col, (cx, cy - 68), 28)
-            pygame.draw.circle(surface, dark, (cx, cy - 68), 28, 2)
-            # Coroa
+            pygame.draw.circle(surface, dark,     (cx, cy - 68), 28, 2)
             pygame.draw.polygon(surface, GOLD, [
-                (cx - 30, cy - 90), (cx - 20, cy - 112), (cx - 8, cy - 94),
+                (cx - 30, cy - 90),  (cx - 20, cy - 112), (cx - 8, cy - 94),
                 (cx, cy - 118), (cx + 8, cy - 94), (cx + 20, cy - 112), (cx + 30, cy - 90)
             ])
-            # Olhos brilhantes
             pygame.draw.circle(surface, (255, 50, 50), (cx - 12, cy - 72), 7)
             pygame.draw.circle(surface, (255, 50, 50), (cx + 12, cy - 72), 7)
             pygame.draw.circle(surface, WHITE, (cx - 12, cy - 72), 3)
             pygame.draw.circle(surface, WHITE, (cx + 12, cy - 72), 3)
-            # Asas
             pygame.draw.polygon(surface, dark, [
                 (cx - 20, cy - 30), (cx - 80, cy - 60), (cx - 70, cy + 10)
             ])
             pygame.draw.polygon(surface, dark, [
                 (cx + 20, cy - 30), (cx + 80, cy - 60), (cx + 70, cy + 10)
             ])
-            # Aura caótica
             for i in range(5):
                 a  = t * 3 + i * (math.pi * 2 / 5)
                 ax = int(cx + math.cos(a) * 50)
@@ -548,7 +657,7 @@ class BattleState(BaseState):
                 pygame.draw.circle(surface, (200, 0, 255), (ax, ay), r)
 
     def _draw_action_buttons(self, surface):
-        rect = pygame.Rect(0, SCREEN_HEIGHT - 320, SCREEN_WIDTH, 120)
+        rect = pygame.Rect(0, SCREEN_HEIGHT - 330, SCREEN_WIDTH, 120)
         draw_panel(surface, rect, alpha=160)
         draw_text(surface, "— SEU TURNO —",
                   SCREEN_WIDTH // 2, SCREEN_HEIGHT - 310,
@@ -557,17 +666,15 @@ class BattleState(BaseState):
             btn.draw(surface)
 
     def _draw_quiz(self, surface):
-        # Overlay
         ov = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         ov.fill((0, 0, 0, 180))
         surface.blit(ov, (0, 0))
 
-        # Painel principal
         panel = pygame.Rect(60, 60, SCREEN_WIDTH - 120, SCREEN_HEIGHT - 120)
         draw_panel(surface, panel, bg_color=(20, 12, 50), border_color=PURPLE,
                    border_width=3, alpha=250)
 
-        draw_text(surface, "✦ HABILIDADE ESPECIAL — PAINEL PYTHON ✦",
+        draw_text(surface, " HABILIDADE ESPECIAL  ",
                   SCREEN_WIDTH // 2, 80,
                   size=FONT_MEDIUM, color=PURPLE, bold=True, center=True)
 
@@ -579,7 +686,6 @@ class BattleState(BaseState):
         pygame.draw.line(surface, PURPLE, (80, 135), (SCREEN_WIDTH - 80, 135), 1)
 
         if self._quiz_result is None:
-            # Pergunta
             pergunta = self._pergunta["pergunta"]
             y = 150
             for line in pergunta.split('\n'):
@@ -587,13 +693,9 @@ class BattleState(BaseState):
                           SCREEN_WIDTH // 2, y,
                           size=FONT_MEDIUM, color=WHITE, center=True)
                 y += FONT_MEDIUM + 6
-
-            # Opções
             for btn in self._resp_btns:
                 btn.draw(surface)
-
         else:
-            # Resultado
             if self._quiz_result == "certo":
                 draw_text(surface, "✓ RESPOSTA CORRETA!",
                           SCREEN_WIDTH // 2, 220,
@@ -622,17 +724,14 @@ class BattleState(BaseState):
         if self._fase_t < 3.5:
             alpha = min(255, int(self._fase_t * 100))
             ov    = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-            pygame.draw.rect(ov, (0, 0, 0, max(0, 180 - alpha * 2)),
-                             ov.get_rect())
+            pygame.draw.rect(ov, (0, 0, 0, max(0, 180 - alpha * 2)), ov.get_rect())
             surface.blit(ov, (0, 0))
-
             draw_text(surface, "NOVO INIMIGO!",
                       SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 40,
                       size=FONT_TITLE, color=RED, bold=True, center=True)
             draw_text(surface, self._inimigo.nome,
                       SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 10,
-                      size=FONT_LARGE, color=self._inimigo.cor,
-                      bold=True, center=True)
+                      size=FONT_LARGE, color=self._inimigo.cor, bold=True, center=True)
             draw_text(surface, "[ Clique para iniciar ]",
                       SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 60,
                       size=FONT_SMALL, color=GRAY, center=True)
@@ -641,8 +740,7 @@ class BattleState(BaseState):
         ov = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         ov.fill((0, 0, 0, 140))
         surface.blit(ov, (0, 0))
-
-        draw_text(surface, "⚔ VITÓRIA! ⚔",
+        draw_text(surface, " VITÓRIA! ",
                   SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50,
                   size=FONT_HUGE, color=GOLD, bold=True, center=True)
         draw_text(surface, f"{self._inimigo.nome} foi derrotado!",
@@ -657,7 +755,6 @@ class BattleState(BaseState):
         ov = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         ov.fill((80, 0, 0, 160))
         surface.blit(ov, (0, 0))
-
         draw_text(surface, "DERROTA...",
                   SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 50,
                   size=FONT_HUGE, color=RED, bold=True, center=True)
