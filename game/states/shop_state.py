@@ -153,7 +153,7 @@ class ShopState(BaseState):
         # Kael decorativo
         self._draw_kael_small(surface, 110, 300)
 
-        draw_text(surface, "⚗ OFICINA DO MESTRE KAEL",
+        draw_text(surface, " OFICINA DO MESTRE KAEL",
                   SCREEN_WIDTH // 2, 30,
                   size=FONT_TITLE, color=GOLD, bold=True, center=True)
         draw_text(surface, "Bem-vindo, herói! O que posso fazer por você?",
@@ -181,13 +181,13 @@ class ShopState(BaseState):
             draw_panel(surface, card, bg_color=(28, 20, 55),
                        border_color=item["cor"], alpha=200)
 
-            draw_text(surface, f"{item['icon']} {item['nome']}",
+            draw_text(surface, f"{item['nome']}",
                       bx, by + 5,
                       size=FONT_SMALL, color=item["cor"], bold=True)
             draw_text(surface, item["desc"],
                       bx, by + 28,
                       size=FONT_TINY, color=GRAY)
-            draw_text(surface, f"{item['preco']} 🪙",
+            draw_text(surface, f"{item['preco']} g",
                       bx + 205, by + 15,
                       size=FONT_SMALL, color=GOLD)
 

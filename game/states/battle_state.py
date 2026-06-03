@@ -95,8 +95,11 @@ class BattleState(BaseState):
             inimigo_nome = type(self._inimigo).__name__
             if inimigo_nome == "SentinelaSuccata":
                 self._enemy_img = pygame.image.load(self._asset_path("sentinela.png")).convert_alpha()
+            elif inimigo_nome == "GeneralBug":
+                self._enemy_img = pygame.image.load(self._asset_path("generalbug.png")).convert_alpha()
             elif inimigo_nome == "ReiDrakon":
                 self._enemy_img = pygame.image.load(self._asset_path("drakon.png")).convert_alpha()
+                
         except Exception:
             self._enemy_img = None
 
@@ -182,7 +185,7 @@ class BattleState(BaseState):
 
     def _update_anim_heroi(self, dt):
         self._anim_t += dt
-        duracao = 0.25
+        duracao = 0.55
         alvo_x  = float(INIMIGO_BASE_X - 130)
 
         if self._anim_t <= duracao:
@@ -295,7 +298,7 @@ class BattleState(BaseState):
             self._heroi.processar_turno()
             self._iniciar_anim_heroi(aplicar_especial)
         else:
-            self._log.add(f"✗ Errado! Habilidade falhou! {self._pergunta['explicacao']}", RED)
+            self._log.add(f" Errado! Habilidade falhou! {self._pergunta['explicacao']}", RED)
             contra   = int(self._inimigo.ataque * 0.8)
             recebido = self._heroi.receber_dano_fixo(contra)
             self._log.add(f"{self._inimigo.nome} aproveitou a abertura! Dano: {recebido}", RED)
@@ -407,8 +410,8 @@ class BattleState(BaseState):
         self._fase_t += dt
         self._stars.update(dt)
 
-        # Shake
-        if self._shake > 0:
+        # Shake 
+        if self._shake > 0: 
             self._shake  -= dt * 30
             self._shake_x = random.randint(-int(self._shake), int(self._shake) + 1)
             self._shake_y = random.randint(-int(self._shake), int(self._shake) + 1)
@@ -531,7 +534,7 @@ class BattleState(BaseState):
         draw_bar(surface, rect.x + 10, rect.y + 38, 295, 22,
                  e.hp, e.hp_max, "HP", fg_color=HP_RED)
         if e.enraivecido:
-            draw_text(surface, "⚡ ENRAIVECIDO!", rect.x + 10, rect.y + 68,
+            draw_text(surface, " ENRAIVECIDO!", rect.x + 10, rect.y + 68,
                       size=FONT_TINY, color=RED)
 
     def _draw_heroi_sprite(self, surface, cx, cy):
@@ -697,14 +700,14 @@ class BattleState(BaseState):
                 btn.draw(surface)
         else:
             if self._quiz_result == "certo":
-                draw_text(surface, "✓ RESPOSTA CORRETA!",
+                draw_text(surface, "RESPOSTA CORRETA!",
                           SCREEN_WIDTH // 2, 220,
                           size=FONT_TITLE, color=ACCENT, bold=True, center=True)
                 draw_text(surface, "Golpe Especial executado com sucesso!",
                           SCREEN_WIDTH // 2, 280,
                           size=FONT_MEDIUM, color=GREEN, center=True)
             else:
-                draw_text(surface, "✗ RESPOSTA INCORRETA!",
+                draw_text(surface, " RESPOSTA INCORRETA!",
                           SCREEN_WIDTH // 2, 220,
                           size=FONT_TITLE, color=RED, bold=True, center=True)
                 draw_text(surface, "A habilidade falhou! Você levou contra-ataque!",

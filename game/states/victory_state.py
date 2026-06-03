@@ -27,7 +27,7 @@ class VictoryState(BaseState):
 
         self._btn_menu = Button(
             pygame.Rect(SCREEN_WIDTH // 2 - 140, SCREEN_HEIGHT - 90, 280, 58),
-            "✦ Menu Principal", color=(60, 50, 10), hover_color=GOLD,
+            " Menu Principal", color=(60, 50, 10), hover_color=GOLD,
             font_size=FONT_MEDIUM
         )
 
@@ -136,7 +136,7 @@ class VictoryState(BaseState):
         # ── Título ────────────────────────────────────────────
         pulse = abs(math.sin(self._t * 1.2)) * 25
         gold_pulse = (int(GOLD[0]), int(max(0, GOLD[1] - pulse)), 0)
-        draw_text(surface, "✦ VITÓRIA! ✦",
+        draw_text(surface, " VITÓRIA! ",
                   SCREEN_WIDTH // 2, 60,
                   size=FONT_HUGE, color=GOLD, bold=True, center=True)
 

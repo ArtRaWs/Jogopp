@@ -65,10 +65,6 @@ class IntroState(BaseState):
                   SCREEN_WIDTH // 2, 60,
                   size=FONT_TITLE, color=title_col,
                   bold=True, center=True)
-        draw_text(surface, "~ Despertar de ArtRaws ~",
-                  SCREEN_WIDTH // 2, 108,
-                  size=FONT_SMALL, color=PURPLE,
-                  center=True)
 
         # ── Separador ─────────────────────────────────────────
         pygame.draw.line(surface, PANEL_BORDER,

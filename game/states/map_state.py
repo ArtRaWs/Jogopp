@@ -1,7 +1,3 @@
-# ============================================================
-#  ELDORIA GAME - ESTADO: MAPA DE ATRINIUM (Hub)
-# ============================================================
-
 import pygame
 import math
 import os
@@ -26,7 +22,6 @@ _LOCAIS = {
         "desc":  "Compre poções e equipamentos.",
         "cor":   GOLD,
         "pos":   (248, 412),
-        "icon":  "⚗",
         "acao":  STATE_SHOP,
     },
     2: {
@@ -34,7 +29,6 @@ _LOCAIS = {
         "desc":      "General Bug aguarda batalha.",
         "cor":       ORANGE,
         "pos":       (620, 258),
-        "icon":      "⚔",
         "acao":      STATE_BATTLE,
         "inimigo":   "general_bug",
         "nivel_req": 1,
@@ -44,7 +38,6 @@ _LOCAIS = {
         "desc":      "Rei Drakon — Batalha Final.",
         "cor":       RED,
         "pos":       (858, 502),
-        "icon":      "☠",
         "acao":      STATE_BATTLE,
         "inimigo":   "rei_drakon",
         "nivel_req": 2,
@@ -106,7 +99,7 @@ class MapState(BaseState):
             avail  = self._local_disponivel(k)
             btn    = Button(
                 rect,
-                f"{loc['icon']}  {loc['nome']}",
+                f" {loc['nome']}",
                 color       = loc["cor"] if avail else GRAY_DARK,
                 hover_color = tuple(min(255, c + 60) for c in loc["cor"]),
                 font_size   = FONT_SMALL,
@@ -116,7 +109,7 @@ class MapState(BaseState):
 
         self._btn_status = Button(
             pygame.Rect(W - 178, H - 60, 158, 44),
-            "⊞  Status",
+            "Status",
             color=(40, 30, 80),
             font_size=FONT_SMALL,
         )
@@ -372,7 +365,7 @@ class MapState(BaseState):
         draw_panel(surface, rect, bg_color=(10, 8, 30),
                    border_color=h.cor, border_width=3, alpha=252)
 
-        draw_text(surface, f"⚔  {h.nome}",
+        draw_text(surface, f"{h.nome}",
                   rect.centerx, rect.y + 20,
                   size=FONT_LARGE, color=h.cor, bold=True, center=True)
         draw_text(surface, f"Nível {h.nivel}  ·  {h.tipo.title()}",
