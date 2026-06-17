@@ -15,22 +15,23 @@ O jogador escolhe entre dois heróis, explora o mapa, enfrenta chefes e responde
 ## 🖼️ Screenshots
 
 ### Tela Inicial
-![Tela Inicial](screenshots/intro.png)
+![Tela Inicial](game/screenshots/intro.png)
 
 ### Seleção de Herói
-![Seleção de Herói](screenshots/hero_select.png)
+![Seleção de Herói](game/screenshots/hero_select.png)
 
 ### Mapa de Atrinium
-![Mapa](screenshots/mapa.png)
+![Mapa](game/screenshots/mapa.png)
 
 ### Batalha
-![Batalha](screenshots/battle.png)
+![Batalha](game/screenshots/battle.png)
+![ataque](game/screenshots/atacar.png)
 
 ### Painel Python — Quiz
-![Quiz](screenshots/quiz.png)
+![Quiz](game/screenshots/quiz.png)
 
 ### Game Over
-![Game Over](screenshots/game_over.png)
+![Game Over](game/screenshots/game_over.png)
 
 ---
 
